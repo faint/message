@@ -10,7 +10,7 @@ import (
 const (
 	SizeofType = 4    // Sizeof Message Type
 	SizeofSize = 4    // Sizeof Message Size
-	MaxBuffer  = 1024 // Max Message Content Size
+	MaxBuffer  = 1024 // sizeofSize = 4(means int32), so max is 2 147 483 647
 	SizeofHead = SizeofType + SizeofSize
 )
 
@@ -28,11 +28,9 @@ func Unpack(b []byte) (Message, error) {
 
 	m.Type = read(buf, SizeofType)
 	m.Size = read(buf, SizeofSize)
-
-	if m.Size > MaxBuffer {
+	if m.Size < 0 || m.Size > MaxBuffer {
 		return m, errors.New("OVER_MAX_BUFFER")
 	}
-
 	mContent := buf.Bytes()
 	rest := int(m.Size - SizeofHead)
 	if rest > 0 {
