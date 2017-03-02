@@ -27,8 +27,8 @@ type Message struct {
 	Content []byte
 }
 
-// ReadMessage use ReadConn to read and return Message.
-func ReadMessage(conn net.Conn) (Message, error) {
+// Read use ReadConn to read and return Message.
+func Read(conn net.Conn) (Message, error) {
 	b, err := ReadConn(conn, SizeofHead) // read head.
 	if err != nil {
 		return Message{}, err
@@ -50,8 +50,8 @@ func ReadMessage(conn net.Conn) (Message, error) {
 	return m, nil
 }
 
-// WriteMessage use WriteConn to write the Message.
-func WriteMessage(conn net.Conn, m Message) error {
+// Write use WriteConn to write the Message.
+func Write(conn net.Conn, m Message) error {
 	b, err := Pack(m.Type, m.Content)
 	if err != nil {
 		return err
