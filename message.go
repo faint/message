@@ -33,11 +33,14 @@ func Read(conn net.Conn) (Message, error) {
 	if err != nil {
 		return Message{}, err
 	}
+	// fmt.Println("ReadConn:", b)
 
 	m, err := Unpack(b) // Unpack head for content size.
 	if err != nil {
 		return m, err
 	}
+	// fmt.Println("Unpack:", m)
+
 	if m.Size == 0 { // Message only has head, return.
 		return m, nil
 	}
@@ -46,7 +49,11 @@ func Read(conn net.Conn) (Message, error) {
 	if err != nil {
 		return m, nil
 	}
+	// fmt.Println("ReadConn again:", c)
+
 	m.Content = c
+	// fmt.Println("return:", m)
+
 	return m, nil
 }
 
@@ -70,7 +77,10 @@ func Unpack(content []byte) (Message, error) {
 	b := bytes.NewBuffer(content)
 
 	m.Type = readIntInBuffer(b, SizeofType)
+	// fmt.Println("Type:", m.Type)
+
 	m.Size = readIntInBuffer(b, SizeofSize)
+	// fmt.Println("Size:", m.Size)
 
 	if m.Size < 0 || m.Size > MaxBuffer { // illegal size.
 		return m, errors.New("BufferOverflow")
@@ -81,6 +91,8 @@ func Unpack(content []byte) (Message, error) {
 	}
 
 	m.Content = b.Bytes()
+	// fmt.Println("Content:", m.Content)
+
 	return m, nil
 }
 
@@ -88,12 +100,18 @@ func Unpack(content []byte) (Message, error) {
 func Pack(messageType int, messageContent []byte) ([]byte, error) {
 	b := new(bytes.Buffer)
 	binary.Write(b, binary.LittleEndian, int32(messageType))
+	// fmt.Println("type:", b.Bytes())
+
 	sizeofMessage := len(messageContent)
 	if sizeofMessage > MaxBuffer {
 		return nil, errors.New("OVER_MAX_BUFFER")
 	}
-	binary.Write(b, binary.LittleEndian, int32(SizeofHead+sizeofMessage))
+	binary.Write(b, binary.LittleEndian, int32(sizeofMessage))
+	// fmt.Println("+size:", b.Bytes())
+
 	binary.Write(b, binary.LittleEndian, messageContent)
+	// fmt.Println("+content:", b.Bytes())
+
 	return b.Bytes(), nil
 }
 
