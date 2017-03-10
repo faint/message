@@ -11,13 +11,12 @@ import (
 
 // const ...
 const (
-	SizeofType = 4    // Sizeof Message Type.
-	SizeofSize = 4    // Sizeof Message Size.
-	MaxBuffer  = 1024 // sizeofSize = 4(means int32), so max is 2,147,483,647.
-	SizeofHead = SizeofType + SizeofSize
-	//
-	ExpiredConnWait   = 60 * 10 // *time.Second for read & write deadline.
-	RetryReadConnTime = 100     // time.Microsecond.
+	MaxBuffer         = 1024 // sizeofSize = 4(means int32), so max is 2,147,483,647.
+	SizeofType        = 4    // Sizeof Message Type.
+	SizeofSize        = 4    // Sizeof Message Size.
+	SizeofTypeSize    = SizeofType + SizeofSize
+	ExpiredConnWait   = 60 * 5 // *time.Second for read & write deadline.
+	RetryReadConnTime = 100    // time.Microsecond.
 )
 
 // Message used for communication between servers and clients.
@@ -29,31 +28,28 @@ type Message struct {
 
 // Read use ReadConn to read and return Message.
 func Read(conn net.Conn) (Message, error) {
-	b, err := ReadConn(conn, SizeofHead) // read head.
+	// read Message.Type + Message.Size
+	b, err := ReadConn(conn, SizeofTypeSize)
 	if err != nil {
 		return Message{}, err
 	}
 	// fmt.Println("ReadConn:", b)
-
 	m, err := Unpack(b) // Unpack head for content size.
 	if err != nil {
 		return m, err
 	}
 	// fmt.Println("Unpack:", m)
-
 	if m.Size == 0 { // Message only has head, return.
 		return m, nil
 	}
-
+	// read Message.Content
 	c, err := ReadConn(conn, m.Size) // read content from conn.
 	if err != nil {
-		return m, nil
+		return m, err
 	}
 	// fmt.Println("ReadConn again:", c)
-
 	m.Content = c
 	// fmt.Println("return:", m)
-
 	return m, nil
 }
 
@@ -63,7 +59,6 @@ func Write(conn net.Conn, m Message) error {
 	if err != nil {
 		return err
 	}
-
 	err = WriteConn(conn, b)
 	if err != nil {
 		return err
@@ -75,24 +70,18 @@ func Write(conn net.Conn, m Message) error {
 func Unpack(content []byte) (Message, error) {
 	m := Message{}
 	b := bytes.NewBuffer(content)
-
 	m.Type = readIntInBuffer(b, SizeofType)
 	// fmt.Println("Type:", m.Type)
-
 	m.Size = readIntInBuffer(b, SizeofSize)
 	// fmt.Println("Size:", m.Size)
-
 	if m.Size < 0 || m.Size > MaxBuffer { // illegal size.
 		return m, errors.New("BufferOverflow")
 	}
-
 	if m.Size == 0 { // head only , it's allowed.
 		return m, nil
 	}
-
 	m.Content = b.Bytes()
 	// fmt.Println("Content:", m.Content)
-
 	return m, nil
 }
 
@@ -101,36 +90,30 @@ func Pack(messageType int, messageContent []byte) ([]byte, error) {
 	b := new(bytes.Buffer)
 	binary.Write(b, binary.LittleEndian, int32(messageType))
 	// fmt.Println("type:", b.Bytes())
-
 	sizeofMessage := len(messageContent)
 	if sizeofMessage > MaxBuffer {
 		return nil, errors.New("OVER_MAX_BUFFER")
 	}
 	binary.Write(b, binary.LittleEndian, int32(sizeofMessage))
 	// fmt.Println("+size:", b.Bytes())
-
 	binary.Write(b, binary.LittleEndian, messageContent)
 	// fmt.Println("+content:", b.Bytes())
-
 	return b.Bytes(), nil
 }
 
 // ReadConn use conn.Read to read size []byte.
 func ReadConn(conn net.Conn, size int) ([]byte, error) {
 	conn.SetReadDeadline(time.Now().Add(time.Second * ExpiredConnWait))
-
 	var b []byte
 	unreadSize := size
 	for unreadSize > 0 {
 		tempBuf := make([]byte, unreadSize)
 		n, err := conn.Read(tempBuf)
-		if err != nil && err != io.EOF { // read error.
+		if err != nil && err != io.EOF { // read error
 			return nil, err
 		}
-
 		b = append(b[:size-unreadSize], tempBuf[:n]...)
 		unreadSize -= n
-
 		if unreadSize > 0 {
 			time.Sleep(time.Microsecond * RetryReadConnTime)
 		}
@@ -141,7 +124,6 @@ func ReadConn(conn net.Conn, size int) ([]byte, error) {
 // WriteConn use conn.Write to write message.
 func WriteConn(conn net.Conn, b []byte) error {
 	conn.SetWriteDeadline(time.Now().Add(time.Second * ExpiredConnWait))
-
 	_, err := conn.Write(b)
 	if err != nil {
 		return err
